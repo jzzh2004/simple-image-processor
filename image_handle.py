@@ -139,6 +139,53 @@ def imagecrop(info):
     # 例如，返回裁剪后的图像和保存路径
     return new_image, output_path
 
+def frequency_filter(info):
+    img_array = np.frombuffer(info['image'], dtype=np.uint8)
+    img = cv.imdecode(img_array, cv.IMREAD_GRAYSCALE)  # 读取为灰度图像
+    if img is None:
+        return None, None
+
+    # 获取滤波参数
+    filter_type = info['mode_params']['filter_type']
+    filter_size = int(info['mode_params']['filter_size'])
+
+    # 计算图像中心
+    rows, cols = img.shape
+    center_row, center_col = rows // 2, cols // 2
+
+    # 进行傅里叶变换并中心化
+    f1 = np.fft.fft2(img)
+    f1shift = np.fft.fftshift(f1)
+
+    # 创建滤波掩膜
+    mask = np.zeros((rows, cols), dtype=np.float32)
+    if filter_type == '低通滤波':
+        # 中心区域为1，其他区域为0
+        mask[center_row - filter_size // 2:center_row + filter_size // 2,
+             center_col - filter_size // 2:center_col + filter_size // 2] = 1
+    elif filter_type == '高通滤波':
+        # 中心区域为0，其他区域为1
+        mask[:, :] = 1
+        mask[center_row - filter_size // 2:center_row + filter_size // 2,
+             center_col - filter_size // 2:center_col + filter_size // 2] = 0
+
+    # 应用掩膜进行滤波
+    f1shift_filtered = f1shift * mask
+
+    # 逆中心化并进行逆傅里叶变换
+    f2 = np.fft.ifftshift(f1shift_filtered)
+    img_new = np.fft.ifft2(f2)
+
+    # 取绝对值并归一化到0-255
+    img_new = np.abs(img_new)
+    img_new = np.uint8(255 * (img_new - np.min(img_new)) / (np.max(img_new) - np.min(img_new)))
+
+    # 保存结果到临时文件
+    output_path = os.path.join(tempfile.gettempdir(), 'output.jpg')
+    cv.imwrite(output_path, img_new)
+
+    return img_new, output_path
+    
 def imagehandle(info):
     mode = info['mode']
     if mode == '图像缩放':
@@ -152,5 +199,8 @@ def imagehandle(info):
     
     if mode == '图像裁剪':
         new_image , output_path = imagecrop(info)
+
+    if mode == '频域滤波':
+        new_image , output_path = frequency_filter(info)
 
     return new_image,output_path,mode

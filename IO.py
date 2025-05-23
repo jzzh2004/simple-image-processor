@@ -8,7 +8,7 @@ def inputhandle():
     # input的合法性校验
     # 自定义校验函数 
     # 获取用户输入
-    mode = select("请选择图像处理模式:",['图像缩放','添加噪声','滤波去噪','图像裁剪'])
+    mode = select("请选择图像处理模式:",['图像缩放','添加噪声','滤波去噪','图像裁剪','频域滤波'])
     put_text("你选择的模式：",mode)
     # 公共输入：上传图像
     image = file_upload("选择你要处理的图片:",accept="image/*")
@@ -41,6 +41,13 @@ def inputhandle():
             input('起始Y坐标:', name='y', type=NUMBER, required=True),
             input('裁剪宽度:', name='crop_w', type=NUMBER, required=True),
             input('裁剪高度:', name='crop_h', type=NUMBER, required=True)
+        ])
+    elif mode == '频域滤波':
+        mode_params = input_group("频域滤波参数", [
+            select('滤波类型:', 
+                   options=['低通滤波', '高通滤波'], 
+                   name='filter_type'),
+            input('滤波器大小:', name='filter_size', type=NUMBER, required=True)
         ])
     else :
         put_error("how can you go there?")   #已完成输出，输入整理尚未完成 
@@ -89,6 +96,14 @@ def output_handle(new_image , output_path,mode):
         put_file('resized_image.jpg', 
                 open(output_path, 'rb').read(), 
                 '下载裁剪后的图像')
+    
+    if mode == '频域滤波':
+        put_success("频域滤波完成!")
+        put_image(open(output_path, 'rb').read())
+        # 提供下载
+        put_file('resized_image.jpg', 
+                open(output_path, 'rb').read(), 
+                '下载频域滤波后的图像')
 
     if output_path and os.path.exists(output_path):
             os.unlink(output_path)

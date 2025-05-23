@@ -1,6 +1,5 @@
 from pywebio.input import *
 from pywebio.output import *
-from pywebio.pin import *
 from pywebio import start_server
 from image_handle import imagehandle 
 import os
