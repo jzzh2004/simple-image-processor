@@ -1,3 +1,8 @@
 image/OIP.jpg
 image/lena.png
 image/IO.jpg
+image
+build
+dist    
+__pycache__
+Main.spec

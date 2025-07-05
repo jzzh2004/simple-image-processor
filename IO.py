@@ -4,11 +4,14 @@ from pywebio.pin import *
 from pywebio import start_server
 from image_handle import imagehandle 
 import os
+
+
+
 def inputhandle():
     # input的合法性校验
     # 自定义校验函数 
     # 获取用户输入
-    mode = select("请选择图像处理模式:",['图像缩放','添加噪声','滤波去噪','图像裁剪','频域滤波'])
+    mode = select("请选择图像处理模式:",['图像缩放','添加噪声','滤波去噪','图像裁剪','频域滤波','频谱分解'])
     put_text("你选择的模式：",mode)
     # 公共输入：上传图像
     image = file_upload("选择你要处理的图片:",accept="image/*")
@@ -49,8 +52,10 @@ def inputhandle():
                    name='filter_type'),
             input('滤波器大小:', name='filter_size', type=NUMBER, required=True)
         ])
+    elif mode == '频谱分解':
+        mode_params = None
     else :
-        put_error("how can you go there?")   #已完成输出，输入整理尚未完成 
+        put_error("how can you go there?")    
 
     # 合并所有输入
     info = {
@@ -72,6 +77,9 @@ def output_handle(new_image , output_path,mode):
         put_file('resized_image.jpg', 
                 open(output_path, 'rb').read(), 
                 '下载缩放后的图像')
+        if output_path and os.path.exists(output_path):
+            os.unlink(output_path)
+    
         
     if mode == '添加噪声':
         put_success("图像添加噪声完成!")
@@ -80,7 +88,9 @@ def output_handle(new_image , output_path,mode):
         put_file('resized_image.jpg', 
                 open(output_path, 'rb').read(), 
                 '下载添加噪声后的图像')
-
+        if output_path and os.path.exists(output_path):
+            os.unlink(output_path)
+    
     if mode == '滤波去噪':
         put_success("图像去噪完成!")
         put_image(open(output_path, 'rb').read())
@@ -88,7 +98,9 @@ def output_handle(new_image , output_path,mode):
         put_file('resized_image.jpg', 
                 open(output_path, 'rb').read(), 
                 '下载去噪后的图像')
-
+        if output_path and os.path.exists(output_path):
+            os.unlink(output_path)
+    
     if mode == '图像裁剪':
         put_success("图像裁剪完成!")
         put_image(open(output_path, 'rb').read())
@@ -96,6 +108,8 @@ def output_handle(new_image , output_path,mode):
         put_file('resized_image.jpg', 
                 open(output_path, 'rb').read(), 
                 '下载裁剪后的图像')
+        if output_path and os.path.exists(output_path):
+            os.unlink(output_path)
     
     if mode == '频域滤波':
         put_success("频域滤波完成!")
@@ -104,9 +118,30 @@ def output_handle(new_image , output_path,mode):
         put_file('resized_image.jpg', 
                 open(output_path, 'rb').read(), 
                 '下载频域滤波后的图像')
-
-    if output_path and os.path.exists(output_path):
+        if output_path and os.path.exists(output_path):
             os.unlink(output_path)
+    
+
+    if mode == '频谱分解':
+        put_success("频谱分解完成!")
+        put_image(open(output_path['magnitude_spectrum'], 'rb').read())
+        # 提供下载
+        put_file('resized_image.jpg', 
+                open(output_path['magnitude_spectrum'], 'rb').read(), 
+                '下载频谱分解后的幅度谱图像')
+        put_image(open(output_path['phase_spectrum'], 'rb').read())
+        put_file('resized_image.jpg', 
+                open(output_path['phase_spectrum'], 'rb').read(), 
+                '下载频谱分解后的相位谱图像')
+        
+        put_image(open(output_path['reconstructed_image'], 'rb').read())
+        put_file('resized_image.jpg', 
+                open(output_path['reconstructed_image'], 'rb').read(), 
+                '下载频谱分解后的重构图像')
+        if output_path and isinstance(output_path, dict):
+            for key, path in output_path.items():
+                if os.path.exists(path):
+                    os.unlink(path)
 
 
 if __name__ == '__main__':

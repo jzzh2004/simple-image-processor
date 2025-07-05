@@ -5,6 +5,8 @@ from Bilinear_interpolation import double_biline
 import os
 import tempfile
 
+
+
 def imagescale(info):
     try:
         # 直接从内存字节数据读取图像
@@ -48,14 +50,12 @@ def imagenoise(info):
         # 获取原始尺寸 (高度, 宽度)
         img=np.array(img)
 
-
         if info['mode_params']['noise_type'] == '高斯噪声':
             noise = np.random.normal(0,50,size=img.size).reshape(img.shape[0],img.shape[1],img.shape[2])
 # 加上噪声
             img = img + noise
             new_img = np.clip(img,0,255)
-            
-        
+            img = img/255 
         elif info['mode_params']['noise_type'] == '椒盐噪声':
             x = img.reshape(1,-1)  
 # 设置信噪比
@@ -97,21 +97,16 @@ def imagefilter(info):
     img=np.array(img)
 
     if info['mode_params']['filter_type'] == '高斯滤波':
-        new_image = cv.GaussianBlur(img,ksize=(5,5),sigmaX=0,sigmaY=0)
+        new_image = cv.GaussianBlur(img,(9,9),0)
 
     elif info['mode_params']['filter_type'] == '中值滤波':
-        noise = np.random.normal(0,50,size=img.size).reshape(img.shape[0],img.shape[1],img.shape[2])
-        img = img + noise
-        img = np.clip(img,0,255)
-        img = np.uint8(img)
-        new_image = cv.medianBlur(img,3)
+
+        new_image = cv.medianBlur(img, 5)
     
     elif info['mode_params']['filter_type'] == '均值滤波':
-        noise = np.random.normal(0,50,size=img.size).reshape(img.shape[0],img.shape[1],img.shape[2])
-        img = img + noise
-        img = np.clip(img,0,255)
-        img = np.uint8(img)
-        new_image = cv.blur(img,(3,3))
+        kernel_size = 3
+# 使用均值滤波进行去噪
+        denoised_image = cv.blur(img, (kernel_size, kernel_size))
 
     output_path = os.path.join(tempfile.gettempdir(), 'output.jpg')
     cv.imwrite(output_path, new_image, [int(cv.IMWRITE_JPEG_QUALITY), 100])
@@ -185,11 +180,83 @@ def frequency_filter(info):
     cv.imwrite(output_path, img_new)
 
     return img_new, output_path
+
+
+
+def reconstruct_image_from_spectra(magnitude_spectrum, phase_spectrum):
+    """
+    使用幅度谱和相位谱重构原图像
+    """
+    try:
+        # 将幅度谱和相位谱转换回频谱
+        magnitude = np.exp(magnitude_spectrum) - 1  # 还原取对数前的幅度谱
+        phase = (phase_spectrum / 255.0) * (2 * np.pi) - np.pi  # 将相位谱还原到 [-π, π]
+        f1shift = magnitude * np.exp(1j * phase)  # 组合成复数频谱
+
+        # 逆中心化并进行逆傅里叶变换
+        f2 = np.fft.ifftshift(f1shift)
+        img_reconstructed = np.fft.ifft2(f2)
+
+        # 取绝对值并归一化到 0-255
+        img_reconstructed = np.abs(img_reconstructed)
+        img_reconstructed = np.uint8(255 * (img_reconstructed - np.min(img_reconstructed)) /
+                                     (np.max(img_reconstructed) - np.min(img_reconstructed)))
+
+        return img_reconstructed
+
+    except Exception as e:
+        print(f"重构图像时发生错误: {e}")
+        return None
     
+def Spectral_decomposition(info):
+    img_array = np.frombuffer(info['image'], dtype=np.uint8)
+    img = cv.imdecode(img_array, cv.IMREAD_GRAYSCALE)  # 读取为灰度图像
+    if img is None:
+        return None, None
+
+    # 进行傅里叶变换并中心化
+    f1 = np.fft.fft2(img)
+    f1shift = np.fft.fftshift(f1)
+
+    # 计算幅度谱和相位谱
+    magnitude_spectrum = np.abs(f1shift)
+    phase_spectrum = np.angle(f1shift)
+
+    # 对幅度谱取对数并归一化到 0-255
+    magnitude_spectrum_log = np.log(1 + magnitude_spectrum)  # 取对数
+    magnitude_spectrum_normalized = np.uint8(255 * (magnitude_spectrum_log - np.min(magnitude_spectrum_log)) /
+                                             (np.max(magnitude_spectrum_log) - np.min(magnitude_spectrum_log)))
+
+    # 将相位谱平移到 0-255
+    phase_spectrum_normalized = (phase_spectrum + np.pi) / (2 * np.pi)  # 将范围从 [-π, π] 映射到 [0, 1]
+    phase_spectrum_normalized = np.uint8(255 * phase_spectrum_normalized)
+
+    # 使用幅度谱和相位谱重构原图像
+    img_reconstructed = reconstruct_image_from_spectra(magnitude_spectrum_log, phase_spectrum_normalized)
+
+    # 保存幅度谱、相位谱和重构图像到临时文件
+    output_path_magnitude = os.path.join(tempfile.gettempdir(), 'magnitude_spectrum.jpg')
+    output_path_phase = os.path.join(tempfile.gettempdir(), 'phase_spectrum.jpg')
+    output_path_reconstructed = os.path.join(tempfile.gettempdir(), 'reconstructed_image.jpg')
+    cv.imwrite(output_path_magnitude, magnitude_spectrum_normalized)
+    cv.imwrite(output_path_phase, phase_spectrum_normalized)
+    cv.imwrite(output_path_reconstructed, img_reconstructed)
+
+    # 返回结果
+    new_image = {'magnitude_spectrum': magnitude_spectrum_normalized,
+                 'phase_spectrum': phase_spectrum_normalized,
+                 'reconstructed_image': img_reconstructed}
+    output_path = {'magnitude_spectrum': output_path_magnitude,
+                   'phase_spectrum': output_path_phase,
+                   'reconstructed_image': output_path_reconstructed}
+    return new_image, output_path 
+
 def imagehandle(info):
+
     mode = info['mode']
+
     if mode == '图像缩放':
-        new_image ,output_path= imagescale(info)     
+        new_image ,output_path = imagescale(info)     
 
     if mode == '添加噪声':
         new_image, output_path = imagenoise(info)
@@ -202,5 +269,8 @@ def imagehandle(info):
 
     if mode == '频域滤波':
         new_image , output_path = frequency_filter(info)
+    
+    if mode == '频谱分解':
+        new_image, output_path = Spectral_decomposition(info)
 
     return new_image,output_path,mode

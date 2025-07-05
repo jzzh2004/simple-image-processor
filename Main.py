@@ -4,10 +4,8 @@ from pywebio import start_server
 from image_handle import imagehandle 
 import os
 from IO import inputhandle,output_handle
+
 def handle():
-    # input的合法性校验
-    # 自定义校验函数 
-    # 获取用户输入
     info = inputhandle()
     new_img, output_path ,mode= imagehandle(info)
     output_handle(new_img,output_path,mode)
